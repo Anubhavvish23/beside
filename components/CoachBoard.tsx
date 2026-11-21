@@ -13,6 +13,7 @@ import {
 import { Check, Eye, Lightbulb, Sigma, Sparkles } from 'lucide-react';
 import type { LearnerSetupInput } from '@/types/conversation';
 import { count_lines, save_summary, type SessionSummary } from '@/lib/history';
+import { code_languages, detect_language } from '@/lib/detect-language';
 
 type CoachHint = {
   hint_id: string;
@@ -89,13 +90,16 @@ function ghost_text_for(code: string, after_line: number, text: string) {
 
 export function CoachBoard({
   session_key,
-  setup,
+  setup: initial_setup,
   agent_uid,
   agent_state,
   agent_enabled,
   show_notes,
 }: CoachBoardProps) {
   const [code, set_code] = useState('');
+  const [language, set_language] = useState(initial_setup.language);
+  const ignored_detection = useRef<string | null>(null);
+  const setup = useMemo(() => ({ ...initial_setup, language }), [initial_setup, language]);
   const [view, set_view] = useState<CoachView | null>(null);
   const [reading, set_reading] = useState<{ line: number; reason: StuckReason } | null>(null);
   const [notice, set_notice] = useState<string | null>(null);
@@ -205,6 +209,38 @@ export function CoachBoard({
     const timer = setTimeout(() => set_notice(null), 4000);
     return () => clearTimeout(timer);
   }, [notice]);
+
+  const change_language = useCallback(
+    (next: string, source: 'manual' | 'auto') => {
+      if (!is_code || next === language) return;
+      if (source === 'manual') {
+        const detected = detect_language(code_ref.current);
+        ignored_detection.current = detected && detected !== next ? detected : null;
+      }
+      set_language(next);
+      set_notice(
+        source === 'auto'
+          ? `Looks like ${next}. Beside switched to it.`
+          : `Switched to ${next}. Beside will coach in ${next}.`,
+      );
+      fetch('/api/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...initial_setup, language: next, session: session_key, code: code_ref.current }),
+      }).catch(() => {});
+    },
+    [initial_setup, is_code, language, session_key],
+  );
+
+  useEffect(() => {
+    if (!is_code) return;
+    const timer = setTimeout(() => {
+      const detected = detect_language(code);
+      if (!detected || detected === language || detected === ignored_detection.current) return;
+      change_language(detected, 'auto');
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [change_language, code, is_code, language]);
 
   const send_brief = useCallback(
     async (brief: string, asked: boolean, reason: string) => {
@@ -524,9 +560,26 @@ export function CoachBoard({
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-white">{setup.title}</p>
-            <p className="truncate text-xs text-white/40">
-              {is_code ? `${setup.language} · ${setup.learner_name}` : `Aptitude · ${setup.learner_name}`}
-            </p>
+            {is_code ? (
+              <div className="flex items-center gap-1.5 text-xs text-white/40">
+                <select
+                  value={language}
+                  onChange={(event) => change_language(event.target.value, 'manual')}
+                  aria-label="Programming language"
+                  title="Change language, or just start typing and Beside detects it"
+                  className="-ml-1 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-xs text-white/70 outline-none transition hover:border-white/15 focus:border-primary/60"
+                >
+                  {code_languages.map((item) => (
+                    <option key={item} value={item} className="bg-[#161616]">
+                      {item}
+                    </option>
+                  ))}
+                </select>
+                <span className="truncate">· {setup.learner_name}</span>
+              </div>
+            ) : (
+              <p className="truncate text-xs text-white/40">Aptitude · {setup.learner_name}</p>
+            )}
           </div>
           <span
             className={`hidden items-center gap-2 text-xs sm:flex ${reading ? 'text-amber-300' : 'text-white/40'}`}

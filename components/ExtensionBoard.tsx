@@ -12,7 +12,8 @@ import {
 } from 'agora-agent-client-toolkit';
 import { Check, Eye, Lightbulb, MousePointerClick, Sigma } from 'lucide-react';
 import type { LearnerSetupInput } from '@/types/conversation';
-import { ask_extension, on_extension_push, type EditorSnapshot } from '@/lib/extension-bridge';
+import { ask_extension, language_from, on_extension_push, type EditorSnapshot } from '@/lib/extension-bridge';
+import { detect_language } from '@/lib/detect-language';
 import { count_lines, save_summary } from '@/lib/history';
 
 type CoachView = {
@@ -54,6 +55,8 @@ export function ExtensionBoard({ session_key, setup, agent_uid, agent_state, age
   const last_auto_at = useRef(0);
   const started_at = useRef(0);
   const baseline_lines = useRef<number | null>(null);
+  const language_ref = useRef(setup.language);
+  const [language, set_language] = useState(setup.language);
   const stats = useRef({ stuck_asked: 0, stuck_auto: 0, ghosts_accepted: 0, max_help_level: 0 });
   const shown_hint = useRef<string | null>(null);
   const shown_ghost = useRef<string | null>(null);
@@ -63,7 +66,7 @@ export function ExtensionBoard({ session_key, setup, agent_uid, agent_state, age
       fetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...setup, session: session_key, ...body }),
+        body: JSON.stringify({ ...setup, language: language_ref.current, session: session_key, ...body }),
       }),
     [session_key, setup],
   );
@@ -75,6 +78,14 @@ export function ExtensionBoard({ session_key, setup, agent_uid, agent_state, age
       return null;
     }
     set_snapshot(next);
+    if (next.ok && typeof next.code === 'string') {
+      const found = language_from(next.language) ?? detect_language(next.code);
+      if (found && found !== language_ref.current) {
+        language_ref.current = found;
+        set_language(found);
+        post('/api/draft', { code: next.code }).catch(() => {});
+      }
+    }
     if (next.ok && typeof next.code === 'string' && baseline_lines.current === null) {
       baseline_lines.current = count_lines(next.code);
     }
@@ -261,7 +272,7 @@ export function ExtensionBoard({ session_key, setup, agent_uid, agent_state, age
       session_key,
       kind: setup.kind,
       title: setup.title,
-      language: setup.language,
+      language,
       learner_name: setup.learner_name,
       started_at: started_at.current,
       updated_at: Date.now(),
@@ -271,7 +282,7 @@ export function ExtensionBoard({ session_key, setup, agent_uid, agent_state, age
       milestones: view.milestones.map((item) => item.note),
       questions: {},
     });
-  }, [session_key, setup, view]);
+  }, [language, session_key, setup, view]);
 
   const line_count = (snapshot?.code ?? '').split('\n').filter((line) => line.trim()).length;
   const connected = Boolean(snapshot?.ok);
@@ -288,7 +299,7 @@ export function ExtensionBoard({ session_key, setup, agent_uid, agent_state, age
             <p className="text-xs font-medium uppercase tracking-wide text-white/45">Reading your editor</p>
             <p className="mt-1 truncate text-sm text-white">{snapshot?.title || snapshot?.host}</p>
             <p className="mt-1 text-xs text-white/45">
-              {snapshot?.kind} · {line_count} line{line_count === 1 ? '' : 's'}
+              {language} · {snapshot?.kind} · {line_count} line{line_count === 1 ? '' : 's'}
               {snapshot?.cursor_line ? ` · cursor on line ${snapshot.cursor_line}` : ''}
             </p>
           </>

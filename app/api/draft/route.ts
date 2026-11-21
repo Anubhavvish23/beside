@@ -6,16 +6,16 @@ export async function POST(request: Request) {
   const body = await read_body(request);
   const session_key = clean_session(body.session);
   if (!session_key) return missing_session();
-  const outcome = await change_session(session_key, (state) => save_code(state, body.code), setup_from(body));
+  const outcome = await change_session(session_key, (state) => save_code(state, body.code, body.language), setup_from(body));
   if (!outcome.found) return missing_session();
-  return NextResponse.json({ ok: true, updated_at: outcome.state.updated_at });
+  return NextResponse.json({ ok: true, language: outcome.state.language, updated_at: outcome.state.updated_at });
 }
 
 export async function PUT(request: Request) {
   const body = await read_body(request);
   const session_key = clean_session(body.session);
   if (!session_key) return missing_session();
-  const outcome = await change_session(session_key, (state) => save_code(state, body.code), setup_from(body));
+  const outcome = await change_session(session_key, (state) => save_code(state, body.code, body.language), setup_from(body));
   if (!outcome.found) return missing_session();
   return NextResponse.json(present_state(outcome.state));
 }

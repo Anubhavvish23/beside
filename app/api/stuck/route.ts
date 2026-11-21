@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { change_session, clean_session, setup_from, mark_stuck, present_state, stuck_brief } from "@/lib/coach";
+import { apply_language, change_session, clean_session, setup_from, mark_stuck, present_state, stuck_brief } from "@/lib/coach";
 import { missing_session, read_body } from "@/lib/session-route";
 
 export async function POST(request: Request) {
@@ -7,6 +7,7 @@ export async function POST(request: Request) {
   const session_key = clean_session(body.session);
   if (!session_key) return missing_session();
   const outcome = await change_session(session_key, (state) => {
+    apply_language(state, body.language);
     mark_stuck(state, body);
     return stuck_brief(state);
   }, setup_from(body));

@@ -528,6 +528,7 @@ export function stuck_brief(state: CoachState): string {
     `${state.learner_name} is working on "${state.title}". Their ${work}, with line numbers:`,
     lines,
     `They stopped around line ${state.reading_line || 1}.`,
+    `They are coding in ${state.language} right now. Any next_line must be ${state.language}.`,
     level_rule,
     "Read it, call post_hint, then say the hint out loud in your own warm words. One or two sentences.",
   ].join("\n");
@@ -546,8 +547,19 @@ export function dismiss_ghost(state: CoachState) {
   state.updated_at = Date.now();
 }
 
-export function save_code(state: CoachState, code: unknown) {
+export function apply_language(state: CoachState, value: unknown) {
+  if (state.kind !== "code" || typeof value !== "string") return false;
+  const language = languages.find((item) => item.toLowerCase() === value.trim().toLowerCase());
+  if (!language || language === state.language) return false;
+  state.language = language;
+  state.ghost = null;
+  state.updated_at = Date.now();
+  return true;
+}
+
+export function save_code(state: CoachState, code: unknown, language?: unknown) {
   if (typeof code === "string") state.code = code.slice(0, max_code_chars);
+  apply_language(state, language);
   state.updated_at = Date.now();
 }
 
