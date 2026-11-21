@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Beside – voice coach for any code editor",
+  "short_name": "Beside",
+  "version": "1.1.0",
+  "description": "A voice trainer in your Chrome sidebar that reads the code in any online editor, hints when you are stuck, and offers the next line.",
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_title": "Open Beside in the sidebar",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "permissions": ["storage", "sidePanel"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "exclude_matches": ["https://in-class-pi.vercel.app/*", "http://localhost/*"],
+      "js": ["editor_main.js"],
+      "world": "MAIN",
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "exclude_matches": ["https://in-class-pi.vercel.app/*", "http://localhost/*"],
+      "js": ["editor_bridge.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "stuck": {
+      "suggested_key": { "default": "Ctrl+Shift+Y", "mac": "Command+Shift+Y" },
+      "description": "Tell Beside you are stuck"
+    }
+  }
+}
